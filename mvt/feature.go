@@ -174,25 +174,76 @@ func (c *cursor) encodeCmd(cmd uint32, points []tegola.Point) []uint32 {
 	if len(points) == 0 {
 		return []uint32{}
 	}
-	//	new slice to hold our encode bytes. 2 bytes for each point pluse a command byte.
-	g := make([]uint32, 0, (2*len(points))+1)
-	//	add the command integer
-	g = append(g, cmd)
+	//	new slice to hold our encode bytes. 2 bytes for each point plus a command byte.
+	g := make([]uint32, 1, (2*len(points))+1)
 
+	var firstPt = true
+	/*
+		var tracking bool
+		var pdx, pdy int64
+	*/
 	//	range through our points
 	for _, p := range points {
 		dx, dy := c.GetDeltaPointAndUpdate(p)
+		if !firstPt && dx == 0 && dy == 0 {
+			// skip this point if there is no change in position.
+			continue
+		}
+		//	log.Printf("Dx(%v),Dy(%v)", dx, dy)
+		/*
+			// this is not working for some reason.
+			if !firstPt {
+				if dx == 0 && dy == 0 {
+					// skip this point if there is no change in position.
+					continue
+				}
+				if dx == 0 || dy == 0 {
+					if !tracking {
+						// put off encoding this point for now.
+						pdx, pdy = dx, dy
+						continue
+					}
+					if dx == 0 && pdx == 0 {
+						pdy += dy
+						continue
+					}
+					if dy == 0 && pdy == 0 {
+						pdx += dx
+						continue
+					}
+
+					g = append(g, encodeZigZag(pdx), encodeZigZag(pdy))
+					pdx, pdy = dx, dy
+					continue
+				}
+				if tracking {
+					tracking = false
+					pdx, pdy = 0, 0
+					g = append(g, encodeZigZag(pdx), encodeZigZag(pdy))
+				}
+			}
+		*/
+		firstPt = false
+
 		//	encode our delta point
 		g = append(g, encodeZigZag(dx), encodeZigZag(dy))
 	}
+	//	add the command integer to the begining of the the array.
+	numPts := (len(g) - 1) / 2
+	/*
+		if numPts < len(points) {
+			log.Printf("number of points:%v v.s. %v — %v%% decrease", numPts, len(points), int(100-(float64(numPts)/float64(len(points))*100)))
+		}
+	*/
+	g[0] = uint32(NewCommand(cmd, numPts))
 	return g
 }
 
 func (c *cursor) MoveTo(points ...tegola.Point) []uint32 {
-	return c.encodeCmd(uint32(NewCommand(cmdMoveTo, len(points))), points)
+	return c.encodeCmd(cmdMoveTo, points)
 }
 func (c *cursor) LineTo(points ...tegola.Point) []uint32 {
-	return c.encodeCmd(uint32(NewCommand(cmdLineTo, len(points))), points)
+	return c.encodeCmd(cmdLineTo, points)
 }
 func (c *cursor) ClosePath() uint32 {
 	return uint32(NewCommand(cmdClosePath, 1))

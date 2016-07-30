@@ -147,6 +147,41 @@ func TestEncodeGeometry(t *testing.T) {
 			},
 			egeo: []uint32{9, 0, 0, 26, 20, 0, 0, 20, 19, 0, 15, 9, 22, 2, 26, 18, 0, 0, 18, 17, 0, 15, 9, 4, 13, 26, 0, 8, 8, 0, 0, 7, 15},
 		},
+		{
+			geo: &basic.MultiPolygon{
+				basic.Polygon{
+					basic.Line{
+						basic.Point{0, 0},
+						basic.Point{10, 0},
+						basic.Point{10, 0},
+						basic.Point{10, 10},
+						basic.Point{0, 10},
+					},
+				},
+				basic.Polygon{
+					basic.Line{
+						basic.Point{11, 11},
+						basic.Point{20, 11},
+						basic.Point{20, 20},
+						basic.Point{11, 20},
+					},
+					basic.Line{
+						basic.Point{13, 13},
+						basic.Point{13, 17},
+						basic.Point{17, 17},
+						basic.Point{17, 13},
+					},
+				},
+			},
+			typ: vectorTile.Tile_POLYGON,
+			bbox: tegola.BoundingBox{
+				Minx: 0,
+				Miny: 0,
+				Maxx: 4096,
+				Maxy: 4096,
+			},
+			egeo: []uint32{9, 0, 0, 26, 20, 0, 0, 20, 19, 0, 15, 9, 22, 2, 26, 18, 0, 0, 18, 17, 0, 15, 9, 4, 13, 26, 0, 8, 8, 0, 0, 7, 15},
+		},
 	}
 	for _, tcase := range testcases {
 		g, gtype, err := encodeGeometry(tcase.geo, tcase.bbox, 4096)
@@ -157,7 +192,7 @@ func TestEncodeGeometry(t *testing.T) {
 			t.Errorf("Expected Geometry Type to be %v Got: %v", tcase.typ, gtype)
 		}
 		if len(g) != len(tcase.egeo) {
-			t.Errorf("Geometry length is not what was expected(%v) got (%v)", tcase.egeo, g)
+			t.Errorf("Geometry length is not what was expected [%v](%v) got [%v](%v)", len(tcase.egeo), tcase.egeo, len(g), g)
 			continue
 		}
 		for i := range tcase.egeo {
