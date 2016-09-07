@@ -227,7 +227,6 @@ func Slope(p1, p2 tegola.Point) (float64, error) {
 		return 0, nil
 	}
 	return (dy / dx), nil
-
 }
 
 func simplifyLine(line tegola.LineString, connected bool) Line {

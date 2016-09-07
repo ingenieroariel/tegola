@@ -36,15 +36,14 @@ type MultiLine interface {
 	Lines() []LineString
 }
 
-// Polygon is a multi-line Geometry  where all the lines connect to form an enclose space.
+// Polygon is a multi-line Geometry  where the first linestring is the exterior ring.
+// The following linestrings will be interior rings that substract the area from the exterior ring
 type Polygon interface {
 	Geometry
 	Sublines() []LineString
 }
 
-// MultiPolygon describes a Geometry multiple intersecting polygons. There should only one
-// exterior polygon, and the rest of the polygons should be interior polygons. The interior
-// polygons will exclude the area from the exterior polygon.
+// MultiPolygon describes a Geometry multiple polygons.
 type MultiPolygon interface {
 	Geometry
 	Polygons() []Polygon

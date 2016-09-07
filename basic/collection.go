@@ -2,10 +2,13 @@ package basic
 
 import "github.com/terranodo/tegola"
 
-// Collection type can represent one or more other basic types.
-type Collection []interface {
-	basicType() // does nothing, but there to make collection only work with basic types.
+// Geometry represents a geomentry of the basic type.
+type Geometry interface {
+	basicType() // does nothing, but here to make Geometry for basic types unique.
 }
+
+// Collection type can represent one or more other basic types.
+type Collection []Geometry
 
 //Geometeries return a set of geometeies that make that collection.
 func (c Collection) Geometeries() (geometeries []tegola.Geometry) {
