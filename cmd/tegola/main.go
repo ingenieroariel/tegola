@@ -20,6 +20,11 @@ import (
 	"github.com/terranodo/tegola/server"
 )
 
+var (
+	//	set at buildtime via the CI
+	Version = "version not set"
+)
+
 type Config struct {
 	Webserver struct {
 		Port      string
@@ -72,6 +77,9 @@ func main() {
 		}
 	}
 
+	//	set our server version
+	server.Version = Version
+
 	//	start our webserver
 	server.Start(port)
 }
@@ -116,7 +124,7 @@ func loadConfig(confLocation string) (Config, error) {
 
 	//	decode conf file
 	if _, err := toml.DecodeReader(reader, &conf); err != nil {
-		return conf, nil
+		return conf, err
 	}
 
 	return conf, nil

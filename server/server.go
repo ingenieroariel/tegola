@@ -1,3 +1,4 @@
+//  Package server implements the http frontend
 package server
 
 import (
@@ -7,6 +8,9 @@ import (
 
 	"github.com/terranodo/tegola/mvt"
 )
+
+//	set at runtime from main
+var Version string
 
 //	incoming requests are associated with a map
 var maps = map[string]layers{}
@@ -18,6 +22,18 @@ func (ls layers) FilterByZoom(zoom int) (filteredLayers []Layer) {
 	for _, l := range ls {
 		if (l.MinZoom <= zoom || l.MinZoom == 0) && (l.MaxZoom >= zoom || l.MaxZoom == 0) {
 			filteredLayers = append(filteredLayers, l)
+		}
+	}
+	return
+}
+
+//	FilterByName returns a slice with the first layer that matches the provided name
+//	the slice return is for convenience. MVT tiles require unique layer names
+func (ls layers) FilterByName(name string) (filteredLayers []Layer) {
+	for _, l := range ls {
+		if l.Name == name {
+			filteredLayers = append(filteredLayers, l)
+			return
 		}
 	}
 	return
@@ -53,7 +69,8 @@ func Start(port string) {
 
 	//	setup routes
 	http.Handle("/", http.FileServer(http.Dir("static")))
-	http.HandleFunc("/maps/", handleZXY)
+	http.Handle("/maps/", HandleZXY{})
+	http.Handle("/capabilities", HandleCapabilities{})
 
 	//	start our server
 	log.Fatal(http.ListenAndServe(port, nil))
