@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -36,8 +37,11 @@ type Config struct {
 }
 
 type Map struct {
-	Name   string `toml:"name"`
-	Layers []struct {
+	Name        string     `toml:"name"`
+	Attribution string     `toml:"attribution"`
+	Bounds      []float64  `toml:"bounds"`
+	Center      [3]float64 `toml:"center"`
+	Layers      []struct {
 		ProviderLayer string      `toml:"provider_layer"`
 		MinZoom       int         `toml:"min_zoom"`
 		MaxZoom       int         `toml:"max_zoom"`
@@ -56,6 +60,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	//	log.Println("config webserver port", conf.Webserver.Port)
+
 	//	init our providers
 	providers, err := initProviders(conf.Providers)
 	if err != nil {
@@ -69,12 +75,9 @@ func main() {
 
 	initLogger(logFile, logFormat, conf.Webserver.LogFile, conf.Webserver.LogFormat)
 
-	//	if port was not set via the command line
-	if port == "" {
-		//	do we have a port in our config file
-		if conf.Webserver.Port != "" {
-			port = conf.Webserver.Port
-		}
+	//	check config for port setting
+	if port == defaultHTTPPort && conf.Webserver.Port != "" {
+		port = conf.Webserver.Port
 	}
 
 	//	set our server version
@@ -135,7 +138,16 @@ func initMaps(maps []Map, providers map[string]mvt.Provider) error {
 
 	//	iterate our maps
 	for _, m := range maps {
-		var layers []server.Layer
+
+		serverMap := server.NewMap(m.Name)
+		//	sanitize the provided attirbution string
+		serverMap.Attribution = html.EscapeString(m.Attribution)
+		serverMap.Center = m.Center
+		if len(m.Bounds) == 4 {
+			serverMap.Bounds = [4]float64{m.Bounds[0], m.Bounds[1], m.Bounds[2], m.Bounds[3]}
+		}
+
+		//	var layers []server.Layer
 		//	iterate our layers
 		for _, l := range m.Layers {
 			//	split our provider name (provider.layer) into [provider,layer]
@@ -176,7 +188,7 @@ func initMaps(maps []Map, providers map[string]mvt.Provider) error {
 			}
 
 			//	add our layer to our layers slice
-			layers = append(layers, server.Layer{
+			serverMap.Layers = append(serverMap.Layers, server.Layer{
 				Name:        providerLayer[1],
 				MinZoom:     l.MinZoom,
 				MaxZoom:     l.MaxZoom,
@@ -186,7 +198,7 @@ func initMaps(maps []Map, providers map[string]mvt.Provider) error {
 		}
 
 		//	register map
-		server.RegisterMap(m.Name, layers)
+		server.RegisterMap(serverMap)
 	}
 
 	return nil
@@ -220,12 +232,12 @@ func initProviders(providers []map[string]interface{}) (map[string]mvt.Provider,
 		//	lookup our provider type
 		t, ok := p["type"]
 		if !ok {
-			return registeredProviders, errors.New("missing 'type' parameter for provider")
+			return registeredProviders, fmt.Errorf("missing 'type' parameter for provider (%v)", pname)
 		}
 
 		ptype, found := t.(string)
 		if !found {
-			return registeredProviders, fmt.Errorf("'type' or provider must be of type string")
+			return registeredProviders, fmt.Errorf("'type' for provider (%v) must be a string", pname)
 		}
 
 		//	register the provider
