@@ -22,6 +22,11 @@ func TestInClip(t *testing.T) {
 			pts:      []float64{5, 2},
 			expected: []bool{false},
 		},
+		{
+			region:   ClippingRegion([4]float64{-2048, 2048, 6939, -6939}),
+			pts:      []float64{2797, -70, 2780, -62, 920, 2059, 927, 2027},
+			expected: []bool{true, true, false, true},
+		},
 	}
 
 	for i, testcase := range testcases {
@@ -78,10 +83,19 @@ func TestDoesCrossClip(t *testing.T) {
 			},
 			expected: []bool{true},
 		},
+		{
+			region: ClippingRegion{-2048, 2048, 4493, -4493},
+			pts: []point{
+				point{X: 3723, Y: 2048},
+				point{X: 3710, Y: 2056},
+			},
+			expected: []bool{false},
+		},
 	}
 
 	for i, testcase := range testcases {
 		for j, e := range testcase.expected {
+			log.Println("Test", i, j)
 			pt1, pt2 := testcase.pts[j*2], testcase.pts[(j*2)+1]
 			g := doesCrossClip(testcase.region, [4]float64{pt1.X, pt1.Y, pt2.X, pt2.Y})
 			if g != e {
@@ -143,6 +157,12 @@ func TestIntersect(t *testing.T) {
 			expected: [2]float64{5, 5},
 			ok:       true,
 		},
+		{
+			line1:    [4]float64{-2048, 2038, 4493, 2038},
+			line2:    [4]float64{927, 2027, 920, 2059},
+			expected: [2]float64{924.59375, 2038},
+			ok:       true,
+		},
 	}
 
 	for i, testcase := range testcases {
@@ -182,7 +202,7 @@ func TestContains(t *testing.T) {
 	for i, testcase := range testcases {
 		for j, e := range testcase.expected {
 			pt := [2]float64{testcase.pts[j*2], testcase.pts[(j*2)+1]}
-			g := contains(pt, testcase.region)
+			g := Contains(pt, testcase.region)
 			if g != e {
 				t.Errorf("For test %v.%v: Expected %v got %v, region: %v pt: %v", i, j, e, g, testcase.region, pt)
 			}
@@ -196,7 +216,6 @@ func TestClip(t *testing.T) {
 		winding WindingOrder
 		subject []float64
 		e       [][]float64
-		eerr    error
 	}{
 		{
 			region:  ClippingRegion{0, 0, 10, 10},
@@ -302,15 +321,7 @@ func TestClip(t *testing.T) {
 				continue
 			}
 		*/
-		log.Println("Starting TestClip test ", k)
-		log.Printf("%+v", testcase)
-		s, e := ClipPolygon(testcase.region, testcase.winding, testcase.subject)
-		if e != testcase.eerr {
-			t.Errorf("Test %v: Expected error to be %v got: %v", k, e, testcase.eerr)
-		}
-		if testcase.eerr != nil {
-			continue
-		}
+		s := ClipPolygon(testcase.region, testcase.winding, testcase.subject)
 		if len(testcase.e) != len(s) {
 			t.Errorf("Test %v: Expected number of slices to be %v got: %v -- %+v", k, len(testcase.e), len(s), s)
 			continue
@@ -375,5 +386,78 @@ func TestClipLineString(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+type doesCrossAxisFloatTestCase struct {
+	region  ClippingRegion
+	winding WindingOrder
+	pts     [4]float64
+
+	epts [8]float64
+	eOk  [4]bool
+}
+
+func newDoesCrossAxisFloatTestCase(r ClippingRegion, w WindingOrder, pts [4]float64, eoks [4]bool, epts ...float64) doesCrossAxisFloatTestCase {
+	var aepts [8]float64
+	var o int
+	for i, k := range eoks {
+		if k {
+			aepts[i*2] = epts[o]
+			aepts[(i*2)+1] = epts[o+1]
+			o += 2
+		}
+	}
+	return doesCrossAxisFloatTestCase{
+		region:  r,
+		winding: w,
+		pts:     pts,
+		epts:    aepts,
+		eOk:     eoks,
+	}
+}
+
+func TestDoesCrossAxisFloat(t *testing.T) {
+
+	testcases := []doesCrossAxisFloatTestCase{
+		newDoesCrossAxisFloatTestCase(
+			ClippingRegion{-2048, 2048, 4493, -4493},
+			Clockwise,
+			[4]float64{927, 2027, 920, 2059},
+			[4]bool{false, true, false, false},
+			924.59375, 2048,
+		),
+		newDoesCrossAxisFloatTestCase(
+			ClippingRegion{-2048, 2048, 4493, -4493},
+			Clockwise,
+			[4]float64{3723, 2048, 3710, 2056},
+			[4]bool{false, true, false, false},
+			3723, 2048,
+		),
+	}
+	for tIdx, testcase := range testcases {
+		if tIdx != 1 {
+			continue
+		}
+		for i, eok := range testcase.eOk {
+			gx, gy, gok := doesCrossAxisFloat(
+				testcase.region,
+				i,
+				testcase.winding,
+				testcase.pts,
+			)
+			if gok != eok {
+				t.Errorf("Failed test %v idx %v: Expected ok to be %v got %v", tIdx, i, eok, gok)
+				continue
+			}
+			if !eok {
+				continue
+			}
+			ex, ey := testcase.epts[i*2], testcase.epts[(i*2)+1]
+			if gx != ex && gy != ey {
+				t.Errorf("Failed test %v idx %v: Expected (x y) to be (%v %v) got (%v %v)", tIdx, i, ex, ey, gx, gy)
+			}
+		}
+
 	}
 }

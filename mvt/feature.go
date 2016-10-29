@@ -74,6 +74,9 @@ func (f *Feature) VTileFeature(keys []string, vals []interface{}, extent tegola.
 	if err != nil {
 		return tf, err
 	}
+	if len(geo) == 0 {
+		return nil, nil
+	}
 	tf.Geometry = geo
 	tf.Type = &gtype
 	return tf, nil
@@ -91,7 +94,11 @@ const (
 type Command uint32
 
 func NewCommand(cmd uint32, count int) Command {
-	return Command((cmd & 0x7) | (uint32(count) << 3))
+	c := (cmd & 0x7) | (uint32(count) << 3)
+	if c == 3 || c == 5 {
+		log.Println("cmd", cmd, c, "count", count)
+	}
+	return Command(c)
 }
 
 func (c Command) ID() uint32 {
@@ -175,6 +182,7 @@ func (c *cursor) GetDeltaPointAndUpdate(p tegola.Point) (dx, dy int64) {
 
 func (c *cursor) encodeCmd(cmd uint32, points []tegola.Point) []uint32 {
 	if len(points) == 0 {
+		//		log.Printf("No points: %v\n ", Command(cmd))
 		return []uint32{}
 	}
 	//	new slice to hold our encode bytes. 2 bytes for each point pluse a command byte.
@@ -213,9 +221,18 @@ func encodeGeometry(geometry tegola.Geometry, extent tegola.BoundingBox, layerEx
 	if err != nil {
 		return nil, vectorTile.Tile_UNKNOWN, fmt.Errorf("Failed to scale geo. %v", err)
 	}
-	if geo, err = basic.SimplifyGeometry(geo); err != nil {
-		return nil, vectorTile.Tile_UNKNOWN, fmt.Errorf("Failed to simplify geo. %v", err)
+	/*
+		if geo, err = basic.SimplifyGeometry(geo); err != nil {
+			return nil, vectorTile.Tile_UNKNOWN, fmt.Errorf("Failed to simplify geo. %v", err)
+		}
+	*/
+	log.Println("Going to clip geo")
+	geo, err = basic.ClipGeometry(extent, layerExtent, geo)
+	if err != nil {
+		log.Println("Errored clipping Geo")
+		return nil, vectorTile.Tile_UNKNOWN, fmt.Errorf("Failed to clip geo. %v", err)
 	}
+	log.Println("Done clipping geo")
 
 	switch t := geo.(type) {
 	case tegola.Point:
@@ -227,11 +244,24 @@ func encodeGeometry(geometry tegola.Geometry, extent tegola.BoundingBox, layerEx
 		return g, vectorTile.Tile_POINT, nil
 
 	case tegola.MultiPoint:
-		g = append(g, c.MoveTo(t.Points()...)...)
+		points := t.Points()
+		if len(points) == 0 {
+			//			log.Println("No points mpoints")
+			return g, vectorTile.Tile_POINT, nil
+		}
+		g = append(g, c.MoveTo(points...)...)
 		return g, vectorTile.Tile_POINT, nil
 
 	case tegola.LineString:
 		points := t.Subpoints()
+		if len(points) == 0 {
+			//			log.Println("No points linestring")
+			return g, vectorTile.Tile_LINESTRING, nil
+		}
+		if len(points[1:]) == 0 {
+			log.Println("No line points linestring")
+			return g, vectorTile.Tile_LINESTRING, nil
+		}
 		g = append(g, c.MoveTo(points[0])...)
 		g = append(g, c.LineTo(points[1:]...)...)
 		return g, vectorTile.Tile_LINESTRING, nil
@@ -240,6 +270,14 @@ func encodeGeometry(geometry tegola.Geometry, extent tegola.BoundingBox, layerEx
 		lines := t.Lines()
 		for _, l := range lines {
 			points := l.Subpoints()
+			if len(points) == 0 {
+				//				log.Println("No points mlinestring")
+				continue
+			}
+			if len(points[1:]) == 0 {
+				//				log.Println("No line points mlinestring")
+				continue
+			}
 			g = append(g, c.MoveTo(points[0])...)
 			g = append(g, c.LineTo(points[1:]...)...)
 		}
@@ -249,6 +287,14 @@ func encodeGeometry(geometry tegola.Geometry, extent tegola.BoundingBox, layerEx
 		lines := t.Sublines()
 		for _, l := range lines {
 			points := l.Subpoints()
+			if len(points) == 0 {
+				//				log.Println("No points polygon")
+				continue
+			}
+			if len(points[1:]) == 0 {
+				log.Println("No line points polygon")
+				continue
+			}
 			g = append(g, c.MoveTo(points[0])...)
 			g = append(g, c.LineTo(points[1:]...)...)
 			g = append(g, c.ClosePath())
@@ -261,6 +307,14 @@ func encodeGeometry(geometry tegola.Geometry, extent tegola.BoundingBox, layerEx
 			lines := p.Sublines()
 			for _, l := range lines {
 				points := l.Subpoints()
+				if len(points) == 0 {
+					//					log.Println("No points mpolygon")
+					continue
+				}
+				if len(points[1:]) == 0 {
+					log.Println("No line points mpolygon")
+					continue
+				}
 				g = append(g, c.MoveTo(points[0])...)
 				g = append(g, c.LineTo(points[1:]...)...)
 				g = append(g, c.ClosePath())
@@ -270,7 +324,7 @@ func encodeGeometry(geometry tegola.Geometry, extent tegola.BoundingBox, layerEx
 		return g, vectorTile.Tile_POLYGON, nil
 
 	default:
-		log.Printf("Geo: %v : %T", wkb.WKT(geo), geo)
+		log.Printf("Geo: %v : %T", wkb.WKT(geometry), geometry)
 		return nil, vectorTile.Tile_UNKNOWN, ErrUnknownGeometryType
 	}
 }

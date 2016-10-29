@@ -1,9 +1,6 @@
 package clipping
 
-import (
-	"fmt"
-	"log"
-)
+import "fmt"
 
 type PointType uint8
 
@@ -453,6 +450,11 @@ func (c ClippingRegion) MaxY() float64 {
 	return c[3]
 }
 
+func (c ClippingRegion) ContainsPt(x, y float64) bool {
+	return c[0] < x && x < c[2] && c[1] < y && y < c[3]
+	// return Contains([2]float64{x, y}, []float64{c[0], c[1], c[2], c[3]})
+}
+
 func (c ClippingRegion) Axises(idx int, winding WindingOrder) (a [4]float64) {
 	cc := func(idx ...int) [4]float64 {
 		for i := 0; i < 4; i++ {
@@ -485,41 +487,7 @@ func (c ClippingRegion) Axises(idx int, winding WindingOrder) (a [4]float64) {
 	default:
 		panic("Should not get here!")
 	}
-	/*
-		switch idx {
-		case 0:
-			a[0], a[1] = c[0], c[1]
-			if winding == Clockwise {
-				a[2], a[3] = c[2], c[1]
-			} else {
-				a[2], a[3] = c[0], c[3]
-			}
-		case 1:
-			a[2], a[3] = c[2], c[3]
-			if winding == Clockwise {
-				a[0], a[1] = c[2], c[1]
-			} else {
-				a[0], a[1] = c[0], c[3]
-			}
 
-		case 2:
-			a[0], a[1] = c[2], c[3]
-			if winding == Clockwise {
-				a[2], a[3] = c[0], c[3]
-			} else {
-				a[2], a[3] = c[2], c[1]
-			}
-		case 3:
-			a[2], a[3] = c[0], c[1]
-			if winding == Clockwise {
-				a[0], a[1] = c[0], c[3]
-			} else {
-				a[0], a[1] = c[2], c[1]
-			}
-		default:
-			panic("Should not get here!")
-		}
-	*/
 	return a
 }
 
@@ -565,35 +533,78 @@ func (w WindingOrder) String() string {
 }
 
 func inClip(c ClippingRegion, x, y float64) bool {
-	return (c.MinX() < x && x < c.MaxX()) && // Check to make sure the x is within the min and max x values.
-		(c.MinY() < y && y < c.MaxY()) // Check to make sure the y is within the min and max y values.
+	var goodX, goodY bool
+	if c.MaxX() >= c.MinX() {
+		goodX = c.MinX() < x && x < c.MaxX()
+
+	} else {
+		goodX = c.MaxX() < x && x < c.MinX()
+	}
+	if c.MaxY() >= c.MinY() {
+		goodY = c.MinY() < y && y < c.MaxY()
+
+	} else {
+		goodY = c.MaxY() < y && y < c.MinY()
+	}
+
+	return goodX && goodY
 
 }
 
+/*
+func qudrantForGivenRegion(r ClippingRegion, x, y float64) int {
+	switch {
+	case x <= c.MinX() && y >= c.MinY():
+		return 0
+	case x > c.MinX() && x < x.MaxX() && y >= c.MinY():
+		return 1
+	case x >= c.MxxX() && y >= c.MinY():
+		return 2
+	case y > c.MaxY() && y < x.MinY() && x <= c.MinX():
+		return 3
+	case x > c.MinX() && x < x.MaxX() && y > c.MaxY() && y < x.MinY():
+		return 4
+	case y > c.MaxY() && y < x.MinY() && x >= c.MaxX():
+		return 5
+	}
+
+}
+*/
+
 func doesCrossClip(c ClippingRegion, pts [4]float64) bool {
+	x1, y1 := pts[0], pts[1]
+	x2, y2 := pts[2], pts[3]
+
+	x1out := x1 <= c.MinX() || x1 >= c.MaxX()
+	x2out := x2 <= c.MinX() || x2 >= c.MaxX()
+	y1out := y1 <= c.MinY() || y1 >= c.MaxY()
+	y2out := y2 <= c.MinY() || y2 >= c.MaxY()
+
+	// Check diag.
+	if x1out && y1out && x2out && y2out {
+		//log.Println("diag")
+		return true
+	}
 
 	// Is pt1/pt2 outside the x min bound and pt2/pt1 outside the x max bound
-	if ((pts[0] <= c.MinX() && pts[2] >= c.MaxX()) || (pts[2] <= c.MinX() && pts[0] >= c.MaxX())) &&
-		((pts[1] >= c.MinY() && pts[1] <= c.MaxY()) || (pts[3] >= c.MinY() && pts[3] <= c.MaxY())) {
+	if ((x1 <= c.MinX() && x2 >= c.MaxX()) || (x2 <= c.MinX() && x1 >= c.MaxX())) &&
+		((y1 > c.MinY() && y1 < c.MaxY()) || (y2 > c.MinY() && y2 < c.MaxY())) {
+		//log.Println("X min")
 		return true
 	}
 	// Check y
-	if ((pts[1] <= c.MinY() && pts[3] >= c.MaxY()) || (pts[3] <= c.MinY() && pts[1] >= c.MaxY())) &&
-		((pts[0] >= c.MinX() && pts[0] <= c.MaxX()) || (pts[2] >= c.MinX() && pts[2] <= c.MaxX())) {
-		return true
-	}
-	// Check diag.
-	if ((pts[0] <= c.MinX() && pts[2] >= c.MaxX()) || (pts[2] <= c.MinX() && pts[0] >= c.MaxX())) &&
-		((pts[1] <= c.MinY() && pts[3] >= c.MaxY()) || (pts[3] <= c.MinY() && pts[1] >= c.MaxY())) {
+	if ((y1 <= c.MinY() && y2 >= c.MaxY()) || (y2 <= c.MinY() && y1 >= c.MaxY())) &&
+		((x1 > c.MinX() && x1 < c.MaxX()) || (x2 > c.MinX() && x2 < c.MaxX())) {
+		//log.Println("Y min")
 		return true
 	}
 	return false
-
 }
 
 func slopeIntercept(l [4]float64) (m, b float64, slopeDefined bool) {
 	dx := l[2] - l[0]
 	dy := l[3] - l[1]
+	//log.Println("dx", dx, "dy", dy)
 	if dx == 0 || dy == 0 {
 		return 0, l[1], dx != 0
 	}
@@ -610,45 +621,68 @@ func slopeIntercept(l [4]float64) (m, b float64, slopeDefined bool) {
 
 // First we need to get it into point slop form which means we need m and b.
 func intersect(line1 [4]float64, line2 [4]float64) (x, y float64, ok bool) {
+
+	if line1[0] == line1[2] {
+		if line1[0] == line2[0] {
+			return line1[0], line2[1], true
+		}
+		if line1[0] == line2[2] {
+			return line1[0], line2[3], true
+		}
+	}
+	if line1[1] == line1[3] {
+		if line1[1] == line2[1] {
+			return line2[0], line1[1], true
+		}
+		if line1[1] == line2[3] {
+			return line2[2], line1[1], true
+		}
+	}
+
 	m1, b1, definedSlope1 := slopeIntercept(line1)
 	m2, b2, definedSlope2 := slopeIntercept(line2)
+
+	//log.Println("line1", line1, m1, b1, definedSlope1)
+	//log.Println("line2", line2, m2, b2, definedSlope2)
 
 	// If the slopes are the same then they are parallel so, they don't intersect.
 	if definedSlope1 == definedSlope2 && m1 == m2 {
 		return 0, 0, false
 	}
 
-	// line1 is horozontal. So, the intercept is when line2 y == line1's y.
+	// line1 is Horizontal We have the value for x, need the value for y.
 	if !definedSlope1 {
 		// y = m2x+b
 		// (y - b)/m2 = x
-		y = line2[1]
-		if m2 == 0 {
-			return line1[0], y, true
-		}
-		x = (y - b1) / m1
-		return x, y, true
-	}
-
-	if !definedSlope2 {
-		y = line1[1]
-		if m1 == 0 {
-			return line2[0], y, true
-		}
-		x = (y - b2) / m2
-		return x, y, true
-	}
-
-	if m1 == 0 {
-		// y = m2x+b
 		x = line1[0]
+		if m2 == 0 {
+			return x, b2, true
+		}
 		y = (m2 * x) + b2
 		return x, y, true
 	}
 
-	if m2 == 0 {
+	if !definedSlope2 {
 		x = line2[0]
+		y = line1[1]
+		if m1 == 0 {
+			return x, b1, true
+		}
 		y = (m1 * x) + b1
+		return x, y, true
+	}
+
+	if m1 == 0 {
+		// y = mx+b
+		// (y - b)/m = x
+		y = line1[1]
+		x = (y - b2) / m2
+		return x, y, true
+	}
+
+	if m2 == 0 {
+		y = line2[1]
+		x = (y - b1) / m1
 		return x, y, true
 	}
 
@@ -667,52 +701,62 @@ func intersect(line1 [4]float64, line2 [4]float64) (x, y float64, ok bool) {
 
 func doesCrossAxisFloat(c ClippingRegion, idx int, winding WindingOrder, pts [4]float64) (x, y float64, ok bool) {
 
-	x, y, ok = intersect(c.Axises(idx, winding), pts)
-	log.Printf("For Points ( %v %v , %v %v ) intersect with axis(%v) x %v y %v ok: %v", pts[0], pts[1], pts[2], pts[3], idx, x, y, ok)
+	axises := c.Axises(idx, winding)
+	x1, y1 := int64(axises[0]), int64(axises[1])
+	x2, y2 := int64(axises[2]), int64(axises[3])
+	px1, py1 := int64(pts[0]), int64(pts[1])
+	px2, py2 := int64(pts[2]), int64(pts[3])
+	x, y, ok = intersect(axises, pts)
+	ix, iy := int64(x), int64(y)
+	x, y = float64(ix), float64(iy)
+
+	// log.Printf("For Points ( %v %v , %v %v ) intersect with axis(%v -- %+v) x %v y %v ok: %v", px1, py1, px2, py2, idx, axises, x, y, ok)
 	if !ok {
 		return x, y, ok
 	}
+	if x1 <= x2 {
+		ok = x1 <= ix && ix <= x2
+	} else {
+		//log.Println("x2 less then x1", x2, ix, x1, x2 <= ix, ix <= x1)
+		ok = x2 <= ix && ix <= x1
+	}
+	if !ok {
+		//log.Println("After x redo ok", idx, x, y, ok)
+		return x, y, ok
+	}
 
-	/*
-	  first check to see if the x are in the clipping area.
-	   if pt1.x > pt2.x &&
-	      pt1.x >= x &&
-	      x => pt2.x
-	   then the x's are good
-	   else
-	   if pt1.x < pt2.x &&
-	       pt2.x >= x &&
-	       x >= pt1.x
-	   then the x's are good
-	   else
-	   if pt1.x == pt2.x && pt1.x == x
-	   then the x's are good
-	   else return false.
+	if y1 <= y2 {
+		ok = y1 <= iy && iy <= y2
+	} else {
+		//log.Println("y2 less then y1")
+		ok = y2 <= iy && iy <= y1
+	}
+	if !ok {
+		//log.Println("After y redo ok", idx, x, y, ok)
+		return x, y, ok
+	}
 
-	   Then check to see that that y is in the clipping area
-	   if pt1.y > pt2.y &&
-	      pt1.y >= y &&
-	      y >= pt2.y
-	   then the y's are good
-	   else
-	   if pt1.y < pt2.y &&
-	       pt2.y >= y &&
-	       y >= pt1.y
-	   then the y's are good
-	   else
-	   if pt1.y == pt2.y && pt1.x == y
-	   then the y's are good
-	   else return false.
+	// Now we need to make sure it's between the points as well.
 
-	*/
+	if px1 <= px2 {
+		ok = px1 <= ix && ix <= px2
+	} else {
+		//log.Println("x2 less then x1", px2, ix, px1, px2 <= ix, ix <= px1)
+		ok = px2 <= ix && ix <= px1
+	}
+	if !ok {
+		//log.Println("After px redo ok", idx, x, y, ok)
+		return x, y, ok
+	}
 
-	ok = ((pts[0] > pts[2] && pts[0] >= x && x >= pts[2]) ||
-		(pts[0] < pts[2] && pts[2] >= x && x >= pts[0]) ||
-		(pts[0] == pts[2] && pts[0] == x)) &&
-		((pts[1] > pts[3] && pts[1] >= y && y >= pts[3]) ||
-			(pts[1] < pts[3] && pts[3] >= y && y >= pts[1]) ||
-			(pts[1] == pts[3] && pts[1] == y))
-	log.Println("After redo ok", idx, x, y, ok)
+	if py1 <= py2 {
+		ok = py1 <= iy && iy <= py2
+	} else {
+		//log.Println("y2 less then y1")
+		ok = py2 <= iy && iy <= py1
+	}
+
+	//log.Println("After py redo ok", idx, x, y, ok)
 	return x, y, ok
 
 }
@@ -861,19 +905,24 @@ func Contains(pt [2]float64, region []float64) bool {
 			continue
 		}
 		// Skip if they don't cross the y-axsis
-		if (pty > pt[1] && lpty > pt[1]) ||
-			(pty < pt[1] && lpty < pt[1]) {
+		if pty > pt[1] && lpty > pt[1] {
 			continue
 		}
+		/*
+			if (pty > pt[1] && lpty > pt[1]) ||
+				(pty < pt[1] && lpty < pt[1]) {
+				continue
+			}
+		*/
 		count++
 	}
 	return count%2 != 0
 }
 
-func ClipPolygon(clipping ClippingRegion, winding WindingOrder, subject []float64) (clippedSubjects [][]float64, err error) {
-	clippedSubjects = make([][]float64, 0, 0)
+func ClipPolygon(clipping ClippingRegion, winding WindingOrder, subject []float64) [][]float64 {
+	clippedSubjects := make([][]float64, 0, 0)
 	if len(subject) <= 6 {
-		return clippedSubjects, fmt.Errorf("Subject should have at least three points.")
+		return clippedSubjects
 	}
 	clipper := make([]point, 4, 4)
 	for i, _ := range clipper {
@@ -920,7 +969,7 @@ SUBJECTFOR:
 		var nxtPt *point
 		var inside bool
 		if i != sublen {
-			log.Printf("Looking at subject vertex %v, %v:( %v %v , %v %v )", i-1, i, subStart.X, subStart.Y, subject[i*2], subject[(i*2)+1])
+			// log.Printf("Looking at subject vertex %v, %v:( %v %v , %v %v )", i-1, i, subStart.X, subStart.Y, subject[i*2], subject[(i*2)+1])
 			inside = inClip(clipping, subject[i*2], subject[(i*2)+1])
 			nxtPt = &point{
 				X:       subject[i*2],
@@ -931,7 +980,7 @@ SUBJECTFOR:
 				SubPrev: subStart,
 			}
 		} else {
-			log.Printf("Looking at subject vertex %v, %v:( %v %v , %v %v )", i-1, 0, subStart.X, subStart.Y, subHead.X, subHead.Y)
+			// log.Printf("Looking at subject vertex %v, %v:( %v %v , %v %v )", i-1, 0, subStart.X, subStart.Y, subHead.X, subHead.Y)
 			nxtPt = subHead
 			inside = subHead.IsIn
 		}
@@ -944,27 +993,29 @@ SUBJECTFOR:
 		subStart.SubNext = nxtPt
 		// If both points are in the clipping region, we move on.
 		if subStart.IsIn && nxtPt.IsIn {
-			log.Println("Both In...moving on. ", winding)
+			// log.Println("Both In...moving on. ", winding)
 			subStart = nxtPt
 			continue SUBJECTFOR
 		}
 		// We are entering the clipping area. We need to find one Intersection point.
 		if (!subStart.IsIn && nxtPt.IsIn) ||
 			(subStart.IsIn && !nxtPt.IsIn) {
-			log.Println("Entering/Exiting clip, one in one out. ", winding)
+			// log.Println("Entering/Exiting clip, one in one out. ", winding)
 			for j := 0; j < 4; j++ {
 				x, y, ok := doesCrossAxis(clipping, j, winding, subStart, nxtPt)
 				// we are done.
 				if !ok {
+					//	log.Println("Not ok", x, y, ok)
 					continue
 				}
+				//log.Println("Not ok", x, y, ok)
 				/*
 					if (x == subStart.X && y == subStart.Y) ||
 						(x == nxtPt.X && y == nxtPt.Y) {
 						continue
 					}
 				*/
-				log.Println(clipping, "Crosses Axis", j, clipping.Axises(j, winding))
+				// log.Println(clipping, "Crosses Axis", j, clipping.Axises(j, winding))
 				intPt := &point{
 					X:       x,
 					Y:       y,
@@ -992,84 +1043,79 @@ SUBJECTFOR:
 					initialInboundIntersect = intPt
 				}
 				subStart = nxtPt
-				log.Println("To Next point")
+				// log.Println("To Next point")
 				continue SUBJECTFOR
 			}
-			panic(fmt.Sprintf("Did not find an intersection! This should not happen! %+v %+v %+v", clipper, subStart, nxtPt))
+			panic(fmt.Sprintf("Line: 1033 Did not find an intersection! This should not happen! %+v %v -- %+v , %+v %v , %+v %v", clipping, winding, clipper, subStart, subStart.IsIn, nxtPt, nxtPt.IsIn))
 		}
 		// All that's left is both points are outside. In this case we need to check if it crosses the clipping area.
-		if doesCrossClip(clipping, [4]float64{subStart.X, subStart.Y, nxtPt.X, nxtPt.Y}) {
-			log.Println("Crossing the clip. ", winding)
-			// There are two points we need to find in this case; one will be entering the clipping area, the other will be
-			// exiting the clipping area.
-			// It's possible that all the points are outside but cross the clipping zone, as in this case, do we mark it
-			// as there be points in the clipping zone as we are going to be adding them.
-			allOutside = false
-			count := 0
-			for j := 0; j < 4; j++ {
-				x, y, ok := doesCrossAxis(clipping, j, winding, subStart, nxtPt)
-				// we are done.
-				if !ok {
-					continue
-				}
-				count++
-				inward := clipping.Inward(j, winding, nxtPt)
-				intPt := &point{
-					X:       x,
-					Y:       y,
-					Type:    Intersect,
-					IsIn:    inward,
-					SubPrev: subStart,
-					SubNext: nxtPt,
-				}
-				log.Println(count, clipping, "Crosses axis ", j, clipping.Axises(j, winding), subStart, nxtPt, intPt, inward)
-				insertIntoSubList(subStart, nxtPt, intPt)
-				if j == 3 {
-					insertIntoClipList(&clipper[j], &clipper[0], intPt)
-				} else {
-					insertIntoClipList(&clipper[j], &clipper[j+1], intPt)
-				}
-				// Now we have to update the interptlist.
-				if intCurrent == nil {
-					intCurrent = intPt
-					intHead = intCurrent
-				}
-				intPt.IntPrev = intCurrent
-				intCurrent.IntNext = intPt
-				intPt.IntNext = intHead
-				intCurrent = intPt
-				if initialInboundIntersect == nil && intPt.IsIn {
-					initialInboundIntersect = intPt
-				}
-				if count >= 2 { // We just found the second point.
-					subStart = nxtPt
-					continue SUBJECTFOR
-				}
+		// log.Println("Crossing the clip. ", winding)
+		// There are two points we need to find in this case; one will be entering the clipping area, the other will be
+		// exiting the clipping area.
+		// It's possible that all the points are outside but cross the clipping zone, as in this case, do we mark it
+		// as there be points in the clipping zone as we are going to be adding them.
+		//count := 0
+		for j := 0; j < 4; j++ {
+			x, y, ok := doesCrossAxis(clipping, j, winding, subStart, nxtPt)
+			// we are done.
+			if !ok {
+				continue
 			}
-			panic(fmt.Sprintf("Did not find an intersection! This should not happen! %+v %+v %+v", clipper, subStart, nxtPt))
-		} else {
-			log.Println("Both out, skipping…")
+			allOutside = false
+			inward := clipping.Inward(j, winding, nxtPt)
+			intPt := &point{
+				X:       x,
+				Y:       y,
+				Type:    Intersect,
+				IsIn:    inward,
+				SubPrev: subStart,
+				SubNext: nxtPt,
+			}
+			// log.Println(count, clipping, "Crosses axis ", j, clipping.Axises(j, winding), subStart, nxtPt, intPt, inward)
+			insertIntoSubList(subStart, nxtPt, intPt)
+			if j == 3 {
+				insertIntoClipList(&clipper[j], &clipper[0], intPt)
+			} else {
+				insertIntoClipList(&clipper[j], &clipper[j+1], intPt)
+			}
+			// Now we have to update the interptlist.
+			if intCurrent == nil {
+				intCurrent = intPt
+				intHead = intCurrent
+			}
+			intPt.IntPrev = intCurrent
+			intCurrent.IntNext = intPt
+			intPt.IntNext = intHead
+			intCurrent = intPt
+			if initialInboundIntersect == nil && intPt.IsIn {
+				initialInboundIntersect = intPt
+			}
+			//count++
 		}
-		// The rest of the points we ignore.
+
+		/*
+					if count > 0 {
+			//			log.Println("Found additional intersetions points", count)
+					}
+		*/
 		subStart = nxtPt
 	}
 
 	if allOutside {
 		// All the points are outside, nothing to return.
-		return clippedSubjects, nil
+		return clippedSubjects
 	}
 
 	if allInside {
 		// All the points are inside, no clipping needs to be done.
 		clippedSubjects = append(clippedSubjects, subject)
-		return clippedSubjects, nil
+		return clippedSubjects
 	}
 
 	// Now we have the data structure in place we need to walk through the intersections point and get the clipped polygons.
 	if initialInboundIntersect == nil {
 		panic(fmt.Sprintf("We should have gotten an intersect point that was in bound."))
 	}
-	//log.Println("Onto Main work.", initialInboundIntersect)
 
 	inboundInt := initialInboundIntersect
 	inboundInt.seen = true
@@ -1078,25 +1124,25 @@ SUBJECTFOR:
 		nxtPt := inboundInt.Next()
 		nxtPt.seen = true
 		linestr := []float64{inboundInt.X, inboundInt.Y}
-		log.Println("Walking the points.", inboundInt)
+		// log.Println("Walking the points.", inboundInt)
 		for nxtPt != inboundInt {
 			count++
-			log.Println("NxtPt", nxtPt)
+			// log.Println("NxtPt", nxtPt)
 			linestr = append(linestr, nxtPt.X, nxtPt.Y)
 			nxtPt = nxtPt.Next()
 			nxtPt.seen = true
 			if count > 10 {
-				return clippedSubjects, nil
+				return clippedSubjects
 			}
 		}
-		log.Println("Found clipping", linestr)
+		// log.Println("Found clipping", linestr)
 		clippedSubjects = append(clippedSubjects, linestr)
 		inboundInt = intHead.NextInboundIntersect()
 		if inboundInt == nil {
-			return clippedSubjects, nil
+			return clippedSubjects
 		}
 	}
-	return clippedSubjects, nil
+	return clippedSubjects
 }
 
 func ClipLineString(clipping ClippingRegion, subject []float64) (clippedSubjects [][]float64) {

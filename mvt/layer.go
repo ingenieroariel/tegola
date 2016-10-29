@@ -39,6 +39,10 @@ func (l *Layer) VTileLayer(extent tegola.BoundingBox) (*vectorTile.Tile_Layer, e
 		if err != nil {
 			return nil, fmt.Errorf("Error getting VTileFeature: %v", err)
 		}
+		if vtf == nil {
+			//log.Println("Skipping empty feature.")
+			continue
+		}
 		features = append(features, vtf)
 	}
 	ext := uint32(l.Extent())

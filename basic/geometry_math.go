@@ -9,7 +9,7 @@ import (
 )
 
 // ApplyToPoints applys the given function to each point in the geometry and any sub geometries, return a new transformed geometry.
-func ApplyToPoints(geometry tegola.Geometry, f func(coords ...float64) ([]float64, error)) (tegola.Geometry, error) {
+func ApplyToPoints(geometry tegola.Geometry, f func(coords ...float64) ([]float64, error)) (Geometry, error) {
 	switch geo := geometry.(type) {
 	default:
 		return nil, fmt.Errorf("Unknown Geometry: %+v", geometry)
@@ -105,7 +105,7 @@ func ApplyToPoints(geometry tegola.Geometry, f func(coords ...float64) ([]float6
 }
 
 // CloneGeomtry returns a deep clone of the Geometry.
-func CloneGeometry(geometry tegola.Geometry) (tegola.Geometry, error) {
+func CloneGeometry(geometry tegola.Geometry) (Geometry, error) {
 	switch geo := geometry.(type) {
 	default:
 		return nil, fmt.Errorf("Unknown Geometry: %t", geometry)
@@ -178,7 +178,7 @@ func CloneGeometry(geometry tegola.Geometry) (tegola.Geometry, error) {
 }
 
 // ToWebMercator takes a SRID and a geometry encode using that srid, and returns a geometry encoded as a WebMercator.
-func ToWebMercator(SRID int, geometry tegola.Geometry) (tegola.Geometry, error) {
+func ToWebMercator(SRID int, geometry tegola.Geometry) (Geometry, error) {
 	switch SRID {
 	default:
 		return nil, fmt.Errorf("Don't know how to convert from %v to %v.", tegola.WebMercator, SRID)
@@ -193,7 +193,7 @@ func ToWebMercator(SRID int, geometry tegola.Geometry) (tegola.Geometry, error) 
 }
 
 // FromWebMercator takes a geometry encoded with WebMercator, and returns a Geometry encodes to the given srid.
-func FromWebMercator(SRID int, geometry tegola.Geometry) (tegola.Geometry, error) {
+func FromWebMercator(SRID int, geometry tegola.Geometry) (Geometry, error) {
 	switch SRID {
 	default:
 		return nil, fmt.Errorf("Don't know how to convert from %v to %v.", SRID, tegola.WebMercator)
@@ -207,7 +207,7 @@ func FromWebMercator(SRID int, geometry tegola.Geometry) (tegola.Geometry, error
 	}
 }
 
-func ScaleGeometry(tile tegola.BoundingBox, extent float64, geo tegola.Geometry) (tegola.Geometry, error) {
+func ScaleGeometry(tile tegola.BoundingBox, extent float64, geo tegola.Geometry) (Geometry, error) {
 	xspan := tile.Maxx - tile.Minx
 	yspan := tile.Maxy - tile.Miny
 	return ApplyToPoints(geo, func(coords ...float64) ([]float64, error) {
@@ -276,7 +276,7 @@ func simplifyPolygon(geo tegola.Polygon) Polygon {
 	return Polygon(pol)
 }
 
-func SimplifyGeometry(geometry tegola.Geometry) (tegola.Geometry, error) {
+func SimplifyGeometry(geometry tegola.Geometry) (Geometry, error) {
 	switch geo := geometry.(type) {
 	//case tegola.Point, tegola.Point3, tegola.MultiPoint:
 	default:
