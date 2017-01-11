@@ -19,6 +19,6 @@ EXPOSE 8080
 #
 # FROM terranodo/tegola
 # COPY config.toml /tegola/
-# RUN cd tegola
+# RUN cd /tegola
 # CMD ["./cmd/tegola/tegola", "--config=/tegola/config.toml"]
 
