@@ -15,5 +15,5 @@ func init() {
     }
     CodeLogger = logrus.New()
     CodeLogger.Out = f
-	CodeLogger.Level = logrus.DebugLevel
+        CodeLogger.Level = logrus.InfoLevel
 }

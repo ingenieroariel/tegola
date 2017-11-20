@@ -7,7 +7,7 @@ hostname = "localhost"
 [[providers]]
 name = "gpkgathens"
 type = "gpkg"
-FilePath = "/home/jivan/gpkg/athens-osm-20170921.gpkg"
+FilePath = "/code/go/src/github.com/terranodo/tegola/provider/gpkg/test_data/athens-osm-20170921.gpkg"
 
     [[providers.layers]]
     name = "land_polygons"
