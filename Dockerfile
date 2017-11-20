@@ -14,14 +14,14 @@ RUN wget "http://www.gaia-gis.it/gaia-sins/readosm-1.1.0.tar.gz" && tar zxvf rea
 
 RUN wget "http://www.gaia-gis.it/gaia-sins/spatialite-tools-4.3.0.tar.gz" && tar zxvf spatialite-tools-4.3.0.tar.gz && cd spatialite-tools-4.3.0 && ./configure && make && make install
 
-#RUN apk del gcc make
-
 RUN mv /usr/local/bin/* /usr/bin/
 RUN mv /usr/local/lib/*.so /usr/lib/
 RUN mv /usr/local/lib/*.a /usr/lib/
 
 ADD . /go/src/github.com/terranodo/tegola
 RUN cd /go/src/github.com/terranodo/tegola/cmd/tegola; go build -o tegola; cp tegola /usr/bin
+
+RUN apk del gcc make
 
 # Create a minimal instance
 FROM alpine
