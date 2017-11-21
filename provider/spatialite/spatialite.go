@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jackc/pgx"
+	"github.com/mattn/go-sqlite3"
 
 	"context"
 
