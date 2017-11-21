@@ -10,7 +10,7 @@ import (
 	"github.com/terranodo/tegola/util/dict"
 	"github.com/terranodo/tegola/wkb"
 
-	"github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 
 	"database/sql"
 
@@ -126,15 +126,17 @@ func (p *GPKGProvider) MVTLayer(ctx context.Context, layerName string, tile tego
 	}
 
 	util.CodeLogger.Infof("Opening gpkg at: ", filepath)
-        var driver_name string
-        driver_name = "spatialite"
+	var driver_name string
+	//driver_name = "spatialite"
 
-        // Check for spatialite and if there are no errors, replace
-        // sqlite_driver with "sqlite3_with_spatialite"
-        sql.Register("spatialite",
-                     &sqlite3.SQLiteDriver{
-                         Extensions: []string{"mod_spatialite"},
-                     })
+	// Check for spatialite and if there are no errors, replace
+	// sqlite_driver with "sqlite3_with_spatialite"
+	//sql.Register("spatialite",
+	//	&sqlite3.SQLiteDriver{
+	//	Extensions: []string{"mod_spatialite"},
+	//})
+
+	driver_name = "sqlite3"
 
 	db, err := sql.Open(driver_name, filepath)
 	if err != nil {
