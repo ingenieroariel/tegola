@@ -90,7 +90,14 @@ func replaceTokens(plyr *Layer, tile tegola.TegolaTile) (string, error) {
 
 	minPt, maxPt := minGeo.AsPoint(), maxGeo.AsPoint()
 
-	bbox := fmt.Sprintf("ST_MakeEnvelope(%v,%v,%v,%v,%v)", minPt.X(), minPt.Y(), maxPt.X(), maxPt.Y(), plyr.srid)
+	//bbox := fmt.Sprintf("ST_MakeEnvelope(%v,%v,%v,%v,%v)", minPt.X(), minPt.Y(), maxPt.X(), maxPt.Y(), plyr.srid)
+
+	bbox := fmt.Sprintf("Envelope(GeomFromText('LINESTRING(%v %v,%v %v,%v %v,%v %v)', %v))",
+		minPt.X(), minPt.Y(),
+		minPt.X(), maxPt.Y(),
+		maxPt.X(), maxPt.Y(),
+		maxPt.X(), minPt.Y(),
+		plyr.srid)
 
 	//	replace query string tokens
 	t := tile.(*tegola.Tile)
@@ -144,9 +151,9 @@ func transformVal(valType pgx.Oid, val interface{}) (interface{}, error) {
 	}
 }
 
-func decipherFields(ctx context.Context, geoFieldname, idFieldname string, descriptions []pgx.FieldDescription, values []interface{}) (gid uint64, geom []byte, tags map[string]interface{}, err error) {
+func decipherFields(ctx context.Context, geoFieldname, idFieldname string, descriptions []string, values []interface{}) (gid uint64, geom []byte, tags map[string]interface{}, err error) {
 	tags = make(map[string]interface{})
-	var desc pgx.FieldDescription
+	var desc string
 	var ok bool
 
 	for i, v := range values {
@@ -159,7 +166,7 @@ func decipherFields(ctx context.Context, geoFieldname, idFieldname string, descr
 			continue
 		}
 		desc = descriptions[i]
-		switch desc.Name {
+		switch desc {
 		case geoFieldname:
 			if geom, ok = v.([]byte); !ok {
 				return 0, nil, nil, fmt.Errorf("Unable to convert geometry field (%v) into bytes.", geoFieldname)
@@ -167,37 +174,11 @@ func decipherFields(ctx context.Context, geoFieldname, idFieldname string, descr
 		case idFieldname:
 			gid, err = gId(v)
 		default:
-			switch desc.DataTypeName {
-			// hstore is a special case
-			case "hstore":
-				// parse our Hstore values into keys and values
-				keys, values, err := pgx.ParseHstore(v.(string))
-				if err != nil {
-					return gid, geom, tags, fmt.Errorf("Unable to parse Hstore err: %v", err)
-				}
-				for i, k := range keys {
-					// if the value is Valid (i.e. not null) then add it to our tags map.
-					if values[i].Valid {
-						//	we need to check if the key already exists. if it does, then don't overwrite it
-						if _, ok := tags[k]; !ok {
-							tags[k] = values[i].String
-						}
-					}
-				}
-				continue
-			case "numeric":
-				num, err := strconv.ParseFloat(v.(string), 64)
-				if err != nil {
-					return 0, nil, nil, fmt.Errorf("Unable to parse numeric (%v) to float64 err: %v", v.(string), err)
-				}
-				tags[desc.Name] = num
-				continue
+			switch desc {
+
 			default:
-				value, err := transformVal(desc.DataType, v)
-				if err != nil {
-					return gid, geom, tags, fmt.Errorf("Unable to convert field[%v] (%v) of type (%v - %v) to a suitable value.: [[ %T  :: %[5]t ]]", i, desc.Name, desc.DataType, desc.DataTypeName, v)
-				}
-				tags[desc.Name] = value
+
+				tags[desc] = v
 			}
 		}
 	}

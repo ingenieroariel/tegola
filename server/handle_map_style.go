@@ -11,7 +11,7 @@ import (
 	"github.com/dimfeld/httptreemux"
 	"gopkg.in/go-playground/colors.v1"
 
-	"github.com/terranodo/tegola"
+	_ "github.com/terranodo/tegola"
 	"github.com/terranodo/tegola/mapbox/style"
 )
 
@@ -132,39 +132,24 @@ func (req HandleMapStyle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 
-		//	chose our paint type based on the geometry type
-		switch l.GeomType.(type) {
-		case tegola.Point, tegola.Point3, tegola.MultiPoint:
-			layer.Type = style.LayerTypeCircle
-			layer.Paint = &style.LayerPaint{
-				CircleRadius: 3,
-				CircleColor:  stringToColorHex(l.MVTName()),
-			}
-		case tegola.LineString, tegola.MultiLine:
-			layer.Type = style.LayerTypeLine
-			layer.Paint = &style.LayerPaint{
-				LineColor: stringToColorHex(l.MVTName()),
-			}
-		case tegola.Polygon, tegola.MultiPolygon:
-			layer.Type = style.LayerTypeFill
-			hexColor := stringToColorHex(l.MVTName())
+		//FIXME: Hardcoded.
 
-			hex, err := colors.ParseHEX(hexColor)
-			if err != nil {
-				log.Println("error parsing hex color (%v)", hexColor)
-				hex, _ = colors.ParseHEX("#fff") //	default to white on error
-			}
+		layer.Type = style.LayerTypeFill
+		hexColor := stringToColorHex(l.MVTName())
 
-			rgba := hex.ToRGBA()
-			//	set the opacity to 10%
-			rgba.A = 0.10
+		hex, err := colors.ParseHEX(hexColor)
+		if err != nil {
+			log.Println("error parsing hex color (%v)", hexColor)
+			hex, _ = colors.ParseHEX("#fff") //	default to white on error
+		}
 
-			layer.Paint = &style.LayerPaint{
-				FillColor:        rgba.String(),
-				FillOutlineColor: hexColor,
-			}
-		default:
-			log.Printf("layer (providerLayerName: %v) has unsupported geometry type (%v)", l.ProviderLayerName, l.GeomType)
+		rgba := hex.ToRGBA()
+		//	set the opacity to 10%
+		rgba.A = 0.10
+
+		layer.Paint = &style.LayerPaint{
+			FillColor:        rgba.String(),
+			FillOutlineColor: hexColor,
 		}
 
 		//	add our layer to our tile layer response

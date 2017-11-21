@@ -40,7 +40,13 @@ func (p *Provider) ForEachFeature(ctx context.Context, layerName string, tile te
 	defer rows.Close()
 
 	//	fetch rows FieldDescriptions. this gives us the OID for the data types returned to aid in decoding
-	fdescs := rows.FieldDescriptions()
+	fdescs, _ := rows.Columns()
+
+	vals := make([]interface{}, len(fdescs))
+	valPtrs := make([]interface{}, len(fdescs))
+	for i := 0; i < len(fdescs); i++ {
+		valPtrs[i] = &vals[i]
+	}
 
 	for rows.Next() {
 		// do a quick context check:
@@ -49,9 +55,10 @@ func (p *Provider) ForEachFeature(ctx context.Context, layerName string, tile te
 		}
 
 		//	fetch row values
-		vals, err := rows.Values()
+		err = rows.Scan(valPtrs...)
 		if err != nil {
 			return fmt.Errorf("error running SQL: %v ; %v", sql, err)
+			continue
 		}
 
 		gid, geobytes, tags, err := decipherFields(ctx, plyr.GeomFieldName(), plyr.IDFieldName(), fdescs, vals)

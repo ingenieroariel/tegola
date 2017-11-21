@@ -89,22 +89,7 @@ func NewProvider(config map[string]interface{}) (mvt.Provider, error) {
 	// Validate the config to make sure it has the values I care about and the types for those values.
 	c := dict.M(config)
 
-	host, err := c.String(ConfigKeyHost, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	db, err := c.String(ConfigKeyDB, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	user, err := c.String(ConfigKeyUser, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	password, err := c.String(ConfigKeyPassword, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -284,6 +269,8 @@ func (p Provider) layerGeomType(l *Layer) error {
 
 		//	iterate the values returned from our row, sniffing for the geomField or st_geometrytype field name
 		for i, v := range vals {
+			//FIXME: Hardcoding geometry type to see how far we can get.
+			v = "ST_Polygon"
 			switch fdescs[i].Name() {
 			case l.geomField, "st_geometrytype":
 				switch v {
@@ -302,7 +289,8 @@ func (p Provider) layerGeomType(l *Layer) error {
 				case "ST_GeometryCollection":
 					l.geomType = basic.Collection{}
 				default:
-					return fmt.Errorf("layer (%v) returned unsupported geometry type (%v)", l.name, v)
+					return fmt.Errorf("fdescs[%v] is: %v and val is %v", i, fdescs[i].Name(), v)
+					//return fmt.Errorf("layer (%v) returned unsupported geometry type (%v)", l.name, v)
 				}
 			}
 		}
