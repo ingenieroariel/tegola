@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"database/sql"
+
 	"github.com/mattn/go-sqlite3"
 
 	"context"
@@ -22,8 +24,9 @@ const Name = "spatialite"
 
 // Provider provides the spatialite data provider.
 type Provider struct {
-	config pgx.ConnPoolConfig
-	pool   *pgx.ConnPool
+	config map[string]interface{}
+	pool   *sql.DB
+
 	// map of layer name and corrosponding sql
 	layers     map[string]Layer
 	srid       int
@@ -122,20 +125,16 @@ func NewProvider(config map[string]interface{}) (mvt.Provider, error) {
 	}
 
 	p := Provider{
-		srid: int(srid),
-		config: pgx.ConnPoolConfig{
-			ConnConfig: pgx.ConnConfig{
-				Host:     host,
-				Port:     uint16(port),
-				Database: db,
-				User:     user,
-				Password: password,
-			},
-			MaxConnections: int(maxcon),
-		},
+		srid:   int(srid),
+		config: map[string]interface{}{"db": db},
 	}
 
-	if p.pool, err = pgx.NewConnPool(p.config); err != nil {
+	sql.Register("spatialite",
+		&sqlite3.SQLiteDriver{
+			Extensions: []string{"mod_spatialite"},
+		})
+
+	if p.pool, err = sql.Open("spatialite", db); err != nil {
 		return nil, fmt.Errorf("Failed while creating connection pool: %v", err)
 	}
 
@@ -275,17 +274,17 @@ func (p Provider) layerGeomType(l *Layer) error {
 	defer rows.Close()
 
 	//	fetch rows FieldDescriptions. this gives us the OID for the data types returned to aid in decoding
-	fdescs := rows.FieldDescriptions()
+	fdescs, _ := rows.ColumnTypes()
 	for rows.Next() {
 
-		vals, err := rows.Values()
+		vals, err := rows.Columns()
 		if err != nil {
 			return fmt.Errorf("error running SQL: %v ; %v", sql, err)
 		}
 
 		//	iterate the values returned from our row, sniffing for the geomField or st_geometrytype field name
 		for i, v := range vals {
-			switch fdescs[i].Name {
+			switch fdescs[i].Name() {
 			case l.geomField, "st_geometrytype":
 				switch v {
 				case "ST_Point":

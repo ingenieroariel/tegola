@@ -2,79 +2,71 @@ package spatialite
 
 import (
 	"context"
-	"os"
-	"reflect"
-	"testing"
+	"fmt"
 
 	"github.com/terranodo/tegola"
+	"github.com/terranodo/tegola/mvt"
 	"github.com/terranodo/tegola/wkb"
 )
 
-func TestForEachFeature(t *testing.T) {
-	if os.Getenv("RUN_SPATIALITE_TEST") != "yes" {
-		return
+func (p *Provider) Layer(name string) (Layer, bool) {
+	if name == "" {
+		return p.layers[p.firstlayer], true
+	}
+	plyr, ok := p.layers[name]
+	return plyr, ok
+}
+
+func (p *Provider) ForEachFeature(ctx context.Context, layerName string, tile tegola.TegolaTile, fn func(layer Layer, gid uint64, geom wkb.Geometry, tags map[string]interface{}) error) error {
+	plyr, ok := p.Layer(layerName)
+	if !ok {
+		return fmt.Errorf("Don't know of the layer named “%v”", layerName)
 	}
 
-	testcases := []struct {
-		config       map[string]interface{}
-		tile         tegola.Tile
-		expectedTags map[string]interface{}
-	}{
-		{
-			config: map[string]interface{}{
-				ConfigKeyHost:     "localhost",
-				ConfigKeyPort:     int64(5432),
-				ConfigKeyDB:       "tegola",
-				ConfigKeyUser:     "postgres",
-				ConfigKeyPassword: "",
-				ConfigKeyLayers: []map[string]interface{}{
-					{
-						ConfigKeyLayerName:   "buildings",
-						ConfigKeyGeomIDField: "id",
-						ConfigKeyGeomField:   "geom",
-						ConfigKeySQL:         "SELECT id, height, ST_AsBinary(geom) AS geom FROM hstore_test WHERE geom && !BBOX!",
-					},
-				},
-			},
-			tile: tegola.Tile{
-				Z: 1,
-				X: 1,
-				Y: 1,
-			},
-			expectedTags: map[string]interface{}{
-				"height": "10",
-			},
-		},
+	sql, err := replaceTokens(&plyr, tile)
+	if err != nil {
+		return fmt.Errorf("Got the following error (%v) running this sql (%v)", err, sql)
 	}
 
-	for i, tc := range testcases {
-		var err error
+	// do a quick context check:
+	if ctx.Err() != nil {
+		return mvt.ErrCanceled
+	}
 
-		provider, err := NewProvider(tc.config)
+	rows, err := p.pool.Query(sql)
+	if err != nil {
+		return fmt.Errorf("Got the following error (%v) running this sql (%v)", err, sql)
+	}
+	defer rows.Close()
+
+	//	fetch rows FieldDescriptions. this gives us the OID for the data types returned to aid in decoding
+	fdescs := rows.FieldDescriptions()
+
+	for rows.Next() {
+		// do a quick context check:
+		if ctx.Err() != nil {
+			return mvt.ErrCanceled
+		}
+
+		//	fetch row values
+		vals, err := rows.Values()
 		if err != nil {
-			t.Errorf("test (%v) failed. Unable to create a new provider. err: %v", i, err)
-			return
+			return fmt.Errorf("error running SQL: %v ; %v", sql, err)
 		}
 
-		p := provider.(Provider)
+		gid, geobytes, tags, err := decipherFields(ctx, plyr.GeomFieldName(), plyr.IDFieldName(), fdescs, vals)
+		if err != nil {
+			return fmt.Errorf("For layer(%v) %v", plyr.Name(), err)
+		}
 
-		//	iterate our configured layers
-		for _, tcLayer := range tc.config[ConfigKeyLayers].([]map[string]interface{}) {
-			layerName := tcLayer[ConfigKeyLayerName].(string)
-
-			err = p.ForEachFeature(context.Background(), layerName, &tc.tile, func(lyr Layer, gid uint64, wgeom wkb.Geometry, ftags map[string]interface{}) error {
-
-				if !reflect.DeepEqual(tc.expectedTags, ftags) {
-					t.Errorf("test (%v) failed. expected tags (%+v) does not match output (%+v)", i, tc.expectedTags, ftags)
-					return nil
-				}
-
-				return nil
-			})
-			if err != nil {
-				t.Errorf("test (%v) failed. err: %v", i, err)
-				continue
-			}
+		//	decode our WKB
+		geom, err := wkb.DecodeBytes(geobytes)
+		if err != nil {
+			return fmt.Errorf("Unable to decode geometry field (%v) into wkb where (%v = %v).", plyr.GeomFieldName(), plyr.IDFieldName(), gid)
+		}
+		if err = fn(plyr, gid, geom, tags); err != nil {
+			return err
 		}
 	}
+	return nil
 }

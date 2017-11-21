@@ -2,6 +2,7 @@ package spatialite
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"strconv"
@@ -13,7 +14,7 @@ import (
 )
 
 // genSQL will fill in the SQL field of a layer given a pool, and list of fields.
-func genSQL(l *Layer, pool *pgx.ConnPool, tblname string, flds []string) (sql string, err error) {
+func genSQL(l *Layer, pool *sql.DB, tblname string, flds []string) (sql string, err error) {
 
 	if len(flds) == 0 {
 		// We need to hit the database to see what the fields are.
@@ -23,14 +24,14 @@ func genSQL(l *Layer, pool *pgx.ConnPool, tblname string, flds []string) (sql st
 		}
 		defer rows.Close()
 
-		fdescs := rows.FieldDescriptions()
+		fdescs, _ := rows.ColumnTypes()
 		if len(fdescs) == 0 {
 			return "", fmt.Errorf("No fields were returned for table %v", tblname)
 		}
 		//	to avoid field names possibly colliding with Postgres keywords,
 		//	we wrap the field names in quotes
 		for i, _ := range fdescs {
-			flds = append(flds, fdescs[i].Name)
+			flds = append(flds, fdescs[i].Name())
 		}
 	}
 	for i := range flds {
