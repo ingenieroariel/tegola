@@ -98,17 +98,30 @@ func hostName(r *http.Request) string {
 	}
 
 	var retHost string
+
+	// Use the x-forwarded-host header if present.
+	if r.Header.Get("x-forwarded-host") != "" {
+		requestHostname = r.Header.Get("x-forwarded-host")
+	}
+
+	// Override r.Host and x-forwarded-host if HostName setting is present.
 	if HostName != "" {
 		retHost = HostName
 	} else {
 		retHost = requestHostname
 	}
 
-	if Port == "none" {
+	// Use the x-forwarded-port header if present.
+	if r.Header.Get("x-forwarded-port") != "" {
+		requestPort = r.Header.Get("x-forwarded-port")
+	}
+
+	// Override r.Port and x-forwarded-port if Port setting is present.
+	if (Port == "none") || (Port == ":80") {
 		// Don't add a port to the host.
 	} else if Port != "" {
-		retHost += ":" + Port
-	} else if requestPort != "" {
+		retHost += Port
+	} else if (requestPort != "") && (requestPort != "80") {
 		retHost += ":" + requestPort
 	}
 
@@ -118,8 +131,8 @@ func hostName(r *http.Request) string {
 //	various checks to determin if the request is http or https. the scheme is needed for the TileURLs
 //	r.URL.Scheme can be empty if a relative request is issued from the client. (i.e. GET /foo.html)
 func scheme(r *http.Request) string {
-	if r.Header.Get("X-Forwarded-Proto") != "" {
-		return r.Header.Get("X-Forwarded-Proto")
+	if r.Header.Get("x-forwarded-proto") != "" {
+		return r.Header.Get("x-forwarded-proto")
 	} else if r.TLS != nil {
 		return "https"
 	}
